@@ -29,8 +29,6 @@ contentType = 'application/json'
 audio_path = '/home/ec2-user/websocketapi/vosk-live-transcription/temp.mp3'
 chathistory = ""
 
-# 定义API端点和请求的JSON数据
-
 
 CL = '\x1b[0K'
 BS = '\x08'
@@ -86,13 +84,12 @@ def llm(userInput,connectId):
     })
     '''
     if talkHistoryJson=='':
-        #没有对话历史记录。把提问插入到DDB
         dynamodb_inserth(connectId,'Human',''
                    +tips
                    +' Now, my question is '+userInput)
         promote = ('Human:'+tips+'Now, my question is '+userInput+'. Assistant:')
     else:
-        #有对话历史记录。把promote和提问插入到DDB
+
         #dynamodb_inserth(connectId,'Human',userInput)
         promote = ('Human:I\'m a customer. You are sunrise restaurant\'s waiter.'
                    +'My question is  '+userInput+'. Please answer me. The json behind is our conversation history. Please refer to them to answer.'+talkHistoryJson+'. Assistant:')
@@ -162,9 +159,8 @@ def stream(ws):
             if rec.AcceptWaveform(audio):
                 r = json.loads(rec.Result())
                 time_last_word = time.time()
-                #print("之前的内容"+stream_buffer)
+                
                 stream_buffer = r['text']
-                #print("之后的内容"+stream_buffer)
                 if stream_buffer:
                     print("Customer:"+ r['text'].strip())
 
@@ -175,7 +171,6 @@ def stream(ws):
             if time_last_word and (time.time() - time_last_word > 1):
                 voice_flag = False
                 if stream_buffer:
-                    #print("调大语言模型内容"+ stream_buffer )
                     response = llm(stream_buffer,packet['streamSid']) #llm call api.
                     #print("LLM Response:", response)
                     #print(response)
@@ -200,12 +195,10 @@ def stream(ws):
                             "payload": stream_base64
                         }
                     }
-                    # 将JSON对象转换为JSON字符串
                     #print(datetime.fromtimestamp(time.time()))
                     
 
                     user_speak = False
-                    #print("关闭调大语言模型")
                     ws.send(json.dumps(json_obj)) 
                     
                     if "Goodby" in response:
@@ -215,7 +208,6 @@ def stream(ws):
                     
                     user_speak = True
                     audio = ''
-                    #print("打开")
                     stream_buffer = ''
                     #rec = vosk.KaldiRecognizer(model, 16000)
                     #print(datetime.fromtimestamp(time.time()))
@@ -233,17 +225,11 @@ def stream(ws):
 
 def text_to_audio_base64(text):
     '''
-    # 使用pydub库生成音频
     audio = Sine(1000).to_audio_segment(duration=len(text) * 100)  # 生成一个持续时间为文本长度的音频，这里使用了一个简单的示例音频，您可以自定义音频生成方式
 
-    # 将文本写入音频数据
     audio = audio._spawn(audio.raw_data, overrides={'frame_rate': 8000, 'channels': 1, 'sample_width': 1})
     audio = audio.set_frame_rate(8000).set_channels(1)
 
-    # 将音频转换为mulaw格式
-    #audio = audio.set_format("mulaw")
-
-    # 将音频转换为Base64字符串
     audio_base64 = base64.b64encode(audio.raw_data)
 
     return audio_base64
@@ -271,20 +257,15 @@ def process_text_to_ulaw(text):
     return audio_base64
 
 def dynamodb_inserth(lexChat,type,content):
-    # 获取日期的时间戳（以秒为单位）
     timestamp = int(time.mktime(datetime.now().timetuple()))
-    # 创建 DynamoDB 客户端
     dynamodb = boto3.client('dynamodb')
-    # 定义表名
     table_name = 'bedrockHistory'
-    # 定义要插入的数据
     item = {
         'lexChat': {'S': lexChat},
         'chatNum': {'N': str(timestamp)},
         'content': {'S': content},
         'type': {'S': type}
     }
-    # 插入数据到 DynamoDB 表
     response = dynamodb.put_item(
         TableName=table_name,
         Item=item
@@ -292,19 +273,14 @@ def dynamodb_inserth(lexChat,type,content):
 
 
 def dynamodb_search(partition_key_value):
-    # 创建 DynamoDB 的客户端
     dynamodb = boto3.client('dynamodb')
-    # 指定要查询的表名
     table_name = 'bedrockHistory'
     try:
-        # 指定查询的分区键值和排序键值
-        # 构建查询表达式
         key_condition_expression = 'lexChat = :pkval'
         expression_attribute_values = {
             ':pkval': {'S': partition_key_value}
         }
 
-        # 执行查询操作
         response = dynamodb.query(
             TableName=table_name,
             KeyConditionExpression=key_condition_expression,
@@ -312,10 +288,8 @@ def dynamodb_search(partition_key_value):
             ScanIndexForward=True
         )
 
-        # 获取查询结果中的所有项目
         items = response['Items']
 
-        # 打印每个项目的内容
         str='{'
         for item in items:
             content = item.get('content').get('S')
@@ -329,7 +303,6 @@ def dynamodb_search(partition_key_value):
         return str
 
     except Exception as e:
-        # 处理异常情况
         print(f"查询 DynamoDB 表发生错误：{str(e)}")
 
 
